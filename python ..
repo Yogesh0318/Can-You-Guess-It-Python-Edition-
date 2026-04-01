@@ -1,0 +1,231 @@
+import random
+import time
+import customtkinter as ctk
+import matplotlib.pyplot as plt
+
+ctk.set_appearance_mode("dark")
+ctk.set_default_color_theme("blue")
+
+class GuessGame:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Guess The Number 🎯")
+        self.root.geometry("700x600")
+
+        self.low = 1
+        self.high = 100
+        self.max_attempts = 10
+
+        self.answer = random.randint(self.low, self.high)
+        self.guesses = 0
+        self.history = []
+
+        self.games_played = 0
+        self.best_score = None
+
+        self.load_score()
+        self.start_time = time.time()
+
+        self.build_ui()
+        self.update_timer()
+
+    def build_ui(self):
+        main_frame = ctk.CTkFrame(self.root)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # TOP
+        top_frame = ctk.CTkFrame(main_frame)
+        top_frame.pack(fill="x", pady=5)
+
+        self.title = ctk.CTkLabel(top_frame, text="🎯 Guess The Number",
+                                 font=("Arial", 22, "bold"))
+        self.title.pack()
+
+        self.range_label = ctk.CTkLabel(top_frame,
+                                       text=f"Guess between {self.low} and {self.high}")
+        self.range_label.pack()
+
+        # MIDDLE
+        middle_frame = ctk.CTkFrame(main_frame)
+        middle_frame.pack(fill="both", expand=True, pady=10)
+
+        left_frame = ctk.CTkFrame(middle_frame)
+        left_frame.pack(side="left", fill="both", expand=True, padx=5)
+
+        right_frame = ctk.CTkFrame(middle_frame)
+        right_frame.pack(side="right", fill="both", expand=True, padx=5)
+
+        # LEFT
+        self.entry = ctk.CTkEntry(left_frame, placeholder_text="Enter your guess")
+        self.entry.pack(pady=10)
+        self.entry.bind("<Return>", self.check_guess)
+
+        ctk.CTkButton(left_frame, text="Submit", command=self.check_guess).pack(pady=5)
+        ctk.CTkButton(left_frame, text="Restart", command=self.reset_game).pack(pady=5)
+
+        self.difficulty = ctk.CTkOptionMenu(
+            left_frame,
+            values=["Easy", "Medium", "Hard"],
+            command=self.set_difficulty
+        )
+        self.difficulty.pack(pady=10)
+
+        self.status = ctk.CTkLabel(left_frame, text="Start guessing!")
+        self.status.pack(pady=10)
+
+        # RIGHT (Stats)
+        ctk.CTkLabel(right_frame, text="📊 Stats",
+                     font=("Arial", 14, "bold")).pack(pady=5)
+
+        self.guess_label = ctk.CTkLabel(right_frame, text="Guesses: 0")
+        self.guess_label.pack()
+
+        self.attempts_label = ctk.CTkLabel(right_frame, text="Attempts left: 10")
+        self.attempts_label.pack()
+
+        self.timer_label = ctk.CTkLabel(right_frame, text="Time: 0s")
+        self.timer_label.pack()
+
+        self.score_label = ctk.CTkLabel(right_frame, text=f"Best Score: {self.best_score}")
+        self.score_label.pack()
+
+        self.games_label = ctk.CTkLabel(right_frame, text="Games Played: 0")
+        self.games_label.pack()
+
+        # BOTTOM
+        bottom_frame = ctk.CTkFrame(main_frame)
+        bottom_frame.pack(fill="x", pady=5)
+
+        self.progress = ctk.CTkProgressBar(bottom_frame)
+        self.progress.pack(pady=5)
+        self.progress.set(0)
+
+        self.history_label = ctk.CTkLabel(bottom_frame, text="History: []")
+        self.history_label.pack()
+
+        self.insight = ctk.CTkLabel(bottom_frame, text="💡 Start in the middle!")
+        self.insight.pack()
+
+    def set_difficulty(self, choice):
+        if choice == "Easy":
+            self.low, self.high, self.max_attempts = 1, 50, 15
+        elif choice == "Medium":
+            self.low, self.high, self.max_attempts = 1, 100, 10
+        else:
+            self.low, self.high, self.max_attempts = 1, 200, 5
+
+        self.range_label.configure(text=f"Guess between {self.low} and {self.high}")
+        self.reset_game()
+
+    def check_guess(self, event=None):
+        guess = self.entry.get()
+
+        if not guess.isdigit():
+            self.status.configure(text="❌ Invalid input", text_color="red")
+            return
+
+        guess = int(guess)
+        self.guesses += 1
+
+        self.history.append(guess)
+        self.history_label.configure(text=f"History: {self.history[-5:]}")
+
+        self.guess_label.configure(text=f"Guesses: {self.guesses}")
+        self.progress.set(self.guesses / self.max_attempts)
+
+        if len(self.history) >= 2 and guess == self.history[-2]:
+            self.insight.configure(text="⚠️ Repeated guess!")
+
+        if guess > self.answer:
+            self.status.configure(text="📉 Too High!", text_color="orange")
+            self.insight.configure(text="💡 Try lower numbers")
+        elif guess < self.answer:
+            self.status.configure(text="📈 Too Low!", text_color="skyblue")
+            self.insight.configure(text="💡 Try higher numbers")
+        else:
+            self.status.configure(text="🎉 Correct!", text_color="green")
+            self.flash_effect()
+
+            self.games_played += 1
+            self.games_label.configure(text=f"Games Played: {self.games_played}")
+
+            if self.guesses <= 3:
+                self.insight.configure(text="🔥 Excellent strategy!")
+            elif self.guesses <= 6:
+                self.insight.configure(text="👍 Good performance!")
+            else:
+                self.insight.configure(text="💡 Improve your guessing strategy")
+
+            if self.best_score is None or self.guesses < self.best_score:
+                self.best_score = self.guesses
+                self.save_score()
+                self.score_label.configure(text=f"Best Score: {self.best_score}")
+
+            self.show_chart()
+            self.root.after(1200, self.reset_game)
+            return
+
+        remaining = self.max_attempts - self.guesses
+        self.attempts_label.configure(text=f"Attempts left: {remaining}")
+
+        if remaining <= 0:
+            self.status.configure(text=f"💀 Game Over! ({self.answer})", text_color="red")
+            self.insight.configure(text="💡 Try binary search strategy")
+            self.show_chart()
+            self.root.after(1500, self.reset_game)
+
+    def flash_effect(self):
+        for _ in range(3):
+            self.root.configure(fg_color="#22c55e")
+            self.root.update()
+            self.root.after(100)
+            self.root.configure(fg_color="#1f2937")
+            self.root.update()
+            self.root.after(100)
+
+    def show_chart(self):
+        if len(self.history) < 2:
+            return
+
+        plt.figure()
+        plt.plot(self.history, marker='o')
+        plt.title("Guess Trend")
+        plt.xlabel("Attempt")
+        plt.ylabel("Guess Value")
+        plt.grid()
+        plt.show()
+
+    def update_timer(self):
+        elapsed = int(time.time() - self.start_time)
+        self.timer_label.configure(text=f"Time: {elapsed}s")
+        self.root.after(1000, self.update_timer)
+
+    def reset_game(self):
+        self.answer = random.randint(self.low, self.high)
+        self.guesses = 0
+        self.history = []
+        self.start_time = time.time()
+
+        self.entry.delete(0, "end")
+        self.guess_label.configure(text="Guesses: 0")
+        self.attempts_label.configure(text=f"Attempts left: {self.max_attempts}")
+        self.history_label.configure(text="History: []")
+        self.status.configure(text="New Game Started 🎯", text_color="white")
+        self.progress.set(0)
+
+    def save_score(self):
+        with open("best_score.txt", "w") as f:
+            f.write(str(self.best_score))
+
+    def load_score(self):
+        try:
+            with open("best_score.txt", "r") as f:
+                self.best_score = int(f.read())
+        except:
+            self.best_score = None
+
+
+if __name__ == "__main__":
+    root = ctk.CTk()
+    app = GuessGame(root)
+    root.mainloop()
